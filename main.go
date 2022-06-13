@@ -27,15 +27,14 @@ func Perform(args Arguments, writer io.Writer) error {
 	}
 
 	if args["operation"] == "list" {
-		err = ReadAndWriteFile(writer)
+		err = ReadAndWriteFile(args, writer)
 	}
 
 	if args["operation"] == "add" {
-		err = AddToFile(args, writer)
+		err := AddToFile(args, writer)
 		if err != nil {
 			return err
 		}
-		err = ReadAndWriteFile(writer)
 	}
 
 	if err != nil {
@@ -58,7 +57,8 @@ func Perform(args Arguments, writer io.Writer) error {
 	return nil
 }
 func removeById(args Arguments, writer io.Writer) error {
-	file, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE, 0755)
+	file, err := os.OpenFile(args["fileName"], os.O_RDWR|os.O_CREATE, 0755)
+	defer file.Close()
 	if err != nil {
 		return err
 	}
@@ -67,36 +67,54 @@ func removeById(args Arguments, writer io.Writer) error {
 		return err
 	}
 
-	var users []User
-	json.Unmarshal(bytes, &users)
-	ans := "[{"
+	var users, ansUsers []User
+	err = json.Unmarshal(bytes, &users)
+	if err != nil {
+		return err
+	}
+	fmt.Println(users)
+	isFound := false
 	for _, v := range users {
-		ans += "\"id\":" + v.Id + ",\"email\":\"" + v.Email + "\",\"age\":" + strconv.Itoa(v.Age) + "},"
+
 		if v.Id == args["id"] {
 			b, err := json.Marshal(v)
 			if err != nil {
 				fmt.Println("error:", err)
 			}
 			writer.Write(b)
+			isFound = true
+			continue
 		}
+		ansUsers = append(ansUsers, v)
 	}
-	ans += "}]"
-	fmt.Println(ans)
+
+	if !isFound {
+		writer.Write([]byte("Item with id " + args["id"] + " not found"))
+	}
 	if err = file.Truncate(0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
 	}
 	file.Seek(0, 0)
 
-	file.Write([]byte(ans))
+	b, err := json.Marshal(ansUsers)
+	if err != nil {
+		return err
+	}
+	file.Write(b)
 	return nil
 }
 
 func findById(args Arguments, writer io.Writer) error {
-	file, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE, 0755)
+	file, err := os.OpenFile(args["fileName"], os.O_RDWR|os.O_CREATE, 0755)
+	defer file.Close()
 	if err != nil {
 		return err
 	}
 	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return err
+	}
+	err = file.Close()
 	if err != nil {
 		return err
 	}
@@ -107,17 +125,19 @@ func findById(args Arguments, writer io.Writer) error {
 		if v.Id == args["id"] {
 			b, err := json.Marshal(v)
 			if err != nil {
-				fmt.Println("error:", err)
+				return nil
 			}
 			writer.Write(b)
 			return nil
 		}
 	}
+
 	return nil
 }
 
 func AddToFile(args Arguments, writer io.Writer) error {
-	file, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE, 0755)
+	file, err := os.OpenFile(args["fileName"], os.O_RDWR|os.O_CREATE, 0755)
+	defer file.Close()
 	if err != nil {
 		return err
 	}
@@ -135,30 +155,30 @@ func AddToFile(args Arguments, writer io.Writer) error {
 	for _, v := range users {
 		ans += "\"id\":" + v.Id + ",\"email\":\"" + v.Email + "\",\"age\":" + strconv.Itoa(v.Age) + "},"
 		if v.Id == userToAdd.Id {
-			return errors.New("Item with id " + v.Id + " already exists")
+			writer.Write([]byte("Item with id " + v.Id + " already exists"))
+			return nil
 		}
 	}
+	fmt.Println(ans)
 	if !isEmpty {
 		ans += "{"
 	}
 	ans += "\"id\":" + userToAdd.Id + ",\"email\":\"" + userToAdd.Email + "\",\"age\":" + strconv.Itoa(userToAdd.Age) + "}]"
-	fmt.Println(ans)
+
 	if err = file.Truncate(0); err != nil {
-		log.Printf("Failed to truncate: %v", err)
+		return err
 	}
 	file.Seek(0, 0)
 
 	file.Write([]byte(ans))
-
-	if err = file.Close(); err != nil {
-		return err
-	}
+	writer.Write([]byte(ans))
 
 	return nil
 }
 
-func ReadAndWriteFile(writer io.Writer) error {
-	file, err := os.OpenFile("users.json", os.O_RDWR|os.O_CREATE, 0755)
+func ReadAndWriteFile(args Arguments, writer io.Writer) error {
+	file, err := os.OpenFile(args["fileName"], os.O_RDWR|os.O_CREATE, 0755)
+	defer file.Close()
 	if err != nil {
 		return err
 	}
@@ -170,9 +190,6 @@ func ReadAndWriteFile(writer io.Writer) error {
 
 	writer.Write(bytes)
 
-	if err = file.Close(); err != nil {
-		return err
-	}
 	return nil
 }
 
