@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strconv"
 )
 
 type Arguments map[string]string
@@ -150,28 +149,28 @@ func AddToFile(args Arguments, writer io.Writer) error {
 	var userToAdd User
 	json.Unmarshal(bytes, &users)
 	json.Unmarshal([]byte(args["item"]), &userToAdd)
-	ans := "[{"
-	isEmpty := len(users) == 0
+
 	for _, v := range users {
-		ans += "\"id\":" + v.Id + ",\"email\":\"" + v.Email + "\",\"age\":" + strconv.Itoa(v.Age) + "},"
 		if v.Id == userToAdd.Id {
 			writer.Write([]byte("Item with id " + v.Id + " already exists"))
 			return nil
 		}
 	}
-	fmt.Println(ans)
-	if !isEmpty {
-		ans += "{"
+
+	users = append(users, userToAdd)
+
+	b, err := json.Marshal(users)
+	if err != nil {
+		return nil
 	}
-	ans += "\"id\":" + userToAdd.Id + ",\"email\":\"" + userToAdd.Email + "\",\"age\":" + strconv.Itoa(userToAdd.Age) + "}]"
 
 	if err = file.Truncate(0); err != nil {
 		return err
 	}
 	file.Seek(0, 0)
 
-	file.Write([]byte(ans))
-	writer.Write([]byte(ans))
+	file.Write(b)
+	writer.Write(b)
 
 	return nil
 }
